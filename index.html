@@ -80,6 +80,10 @@
   <script src="//cdn.jsdelivr.net/bluebird/3.5.0/bluebird.min.js"></script>
   <script src="//cdn.steemjs.com/lib/latest/steem.min.js"></script>
   <script>
+    steem.api.setOptions({
+      url: 'https://api.steemit.com'
+    });
+
     var category = 'Trending';
     var tag = '';
 
@@ -249,18 +253,34 @@
     }
 
     function getState(category, tag) {
-      return steem.api.getState(`${category}/${tag}`).catch(err => {
+      return new Promise((resolve, reject) => {
+        steem.api.getState(`${category}/${tag}`, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
+      }).catch(err => {
         console.error(err);
-        return getState();
+        return getState(category, tag);
       });
     }
 
     function getDiscussion() {
-      return steem.api['getDiscussionsBy' + category]({
-        tag: tag,
-        limit: 20,
-        start_author: lastItem.split('/')[0],
-        start_permlink: lastItem.split('/')[1]
+      return new Promise((resolve, reject) => {
+        steem.api['getDiscussionsBy' + category]({
+          tag: tag,
+          limit: 20,
+          start_author: lastItem.split('/')[0],
+          start_permlink: lastItem.split('/')[1]
+        }, (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        });
       }).catch(err => {
         console.error(err);
         return getDiscussion();
