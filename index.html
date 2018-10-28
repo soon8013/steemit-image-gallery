@@ -96,38 +96,47 @@
     class ImageDataContainer {
       constructor() {
         this.data = [];
-        this.nextFetch = 0;
         this.fetched = [];
         this.failed = [];
-        this.fetching = 0;
+        this.fetching = [];
       }
 
-      startFetch(count) {
+      startFetch() {
+        let count = Math.max(10 - this.fetching.length, 1);
         for (let i = 0; i < count; ++i) {
-          this.fetch();
+          this.fetchWorker();
         }
+      }
+
+      next() {
+        let n = Math.max(...this.fetched.filter(v => v).map(v => v.attr('idx')), ...this.failed.filter(v => v).map(v => v.idx), ...this.fetching);
+        return n < 0 ? 0 : n + 1;
       }
 
       fetchWorker() {
-        if (this.nextFetch >= this.data.length) {
+        if (!this.data.length || this.fetching.length > 10 || this.next() >= this.data.length) {
           return Promise.resolve();
         }
 
-        let idx = this.nextFetch;
-        this.nextFetch++;
-        this.fetching++;
+        $('#loadingImage:hidden').show();
+
+        let idx = this.next();
+        this.fetching.push(idx);
 
         return fetchImage(this.data[idx]).bind(this).then(result => {
           this.fetched[idx] = result;
-          this.fetching--;
+          this.fetching = this.fetching.filter(v => v != idx);
         }).catch(err => {
+          console.log(this.data[idx]);
           this.failed[idx] = this.data[idx];
-          this.fetching--;
+          this.fetching = this.fetching.filter(v => v != idx);
+        }).delay(300).then(this.deployFetched).then(() => {
+          if (!this.fetching.length && this.next() >= this.data.length) {
+            $('#loadingImage:visible').hide();
+          } else {
+            this.startFetch();
+          }
         });
-      }
-
-      fetch() {
-        return this.fetchWorker().bind(this).delay(300).then(this.fetch);
       }
 
       add(item) {
@@ -141,8 +150,27 @@
         if (meta.image) {
           meta.image.forEach(img => {
             let src = img;
-            if (src.startsWith('https://cdn.pixabay.com') || src.startsWith('https://i.imgsafe.org') || src.match(/https?:\/\/.*\.tumblr\.com/) || src.match(/https?:\/\/[^.]+\.userfiles\.me/)) {
-              src = `https://steemitimages.com/0x0/${src}`;
+            switch (true) {
+              case !!src.match(/https?:\/\/[^.]+\.100bucksbabes\.com/):
+              case !!src.match(/https?:\/\/[^.]+\.babeimpact\.com/):
+              case !!src.match(/https?:\/\/[^.]+\.babesandbitches\.com/):
+              case !!src.match(/https?:\/\/[^.]+\.babesandbitches\.net/):
+              case src.startsWith('http://bustynudebabes.com'):
+              case src.startsWith('http://clipart-library.com'):
+              case src.startsWith('https://dl.dropboxusercontent.com'):
+              case !!src.match(/https?:\/\/[^.]+\.exgirlfriendmarket\.com/):
+              case !!src.match(/https?:\/\/.*\.fbcdn\.net/):
+              case !!src.match(/https?:\/\/[^.]+\.gfycat\.com/):
+              case !!src.match(/https?:\/\/[^.]+\.imgsafe\.org/):
+              case !!src.match(/https?:\/\/[^.]+\.morazzia\.com/):
+              case !!src.match(/https?:\/\/[^.]+\.nightdreambabe\.com/):
+              case !!src.match(/https?:\/\/[^.]+\.novohot\.com/):
+              case !!src.match(/https?:\/\/[^.]+\.novoporn\.com/):
+              case src.startsWith('https://cdn.pixabay.com'):
+              case !!src.match(/https?:\/\/.*\.tumblr\.com/):
+              case !!src.match(/https?:\/\/[^.]+\.userfiles\.me/):
+                src = `https://steemitimages.com/0x0/${src}`;
+                break;
             }
 
             this.data.push({
@@ -152,6 +180,7 @@
               author: author,
               idx: this.data.length,
             });
+            this.startFetch();
           });
         }
       }
@@ -169,18 +198,12 @@
             next++;
           }
 
-          if (next >= this.data.length) {
-            $('#loadingImage:visible').hide();
-          } else {
-            $('#loadingImage:hidden').show();
-          }
-
           resolve();
-        }).bind(this).delay(500).then(this.deployFetched);
+        });
       }
 
       isDownloading() {
-        return this.fetching > 0 && this.nextFetch < this.data.length;
+        return this.data.length && (this.fetching.length > 0 || this.next() < this.data.length);
       }
 
       isEmpty() {
@@ -200,9 +223,6 @@
         tag = $('#tag').val().trim().toLowerCase();
         start();
       });
-
-      container.startFetch(10);
-      container.deployFetched();
 
       $(window).scroll(function() {
         if ($(window).scrollTop() + $(window).height() == $(document).height()) {
